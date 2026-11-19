@@ -57,32 +57,6 @@ class MeshBuilder {
 object Shapes {
     private const val TAU = (2 * PI).toFloat()
 
-    /** Box [size] centred on [c], turned [yaw] radians about Y; flat faces (24 vertices). */
-    fun box(c: V3, size: V3, yaw: Float = 0f): MeshData {
-        val b = MeshBuilder()
-        val q = Q4.axis(V3.UP, yaw)
-        val h = size * 0.5f
-        val faces = listOf(
-            V3(1f, 0f, 0f) to V3(0f, 0f, -1f), V3(-1f, 0f, 0f) to V3(0f, 0f, 1f),
-            V3(0f, 1f, 0f) to V3(1f, 0f, 0f), V3(0f, -1f, 0f) to V3(1f, 0f, 0f),
-            V3(0f, 0f, 1f) to V3(1f, 0f, 0f), V3(0f, 0f, -1f) to V3(-1f, 0f, 0f),
-        )
-        for ((nrm, tan) in faces) {
-            val bit = nrm.cross(tan)
-            fun corner(s: Float, r: Float): V3 {
-                val local = V3(nrm.x * h.x + tan.x * s * h.x + bit.x * r * h.x, nrm.y * h.y + tan.y * s * h.y + bit.y * r * h.y, nrm.z * h.z + tan.z * s * h.z + bit.z * r * h.z)
-                return c + q.rotate(local)
-            }
-            val wn = q.rotate(nrm)
-            val a = b.v(corner(-1f, -1f), wn, 0f, 0f)
-            val bb = b.v(corner(1f, -1f), wn, 1f, 0f)
-            val cc = b.v(corner(1f, 1f), wn, 1f, 1f)
-            val d = b.v(corner(-1f, 1f), wn, 0f, 1f)
-            b.quad(a, d, cc, bb)
-        }
-        return fixWinding(b.build())
-    }
-
     /** UV sphere of radius [r] about [c]. */
     fun sphere(c: V3, r: Float, seg: Int = 64, rings: Int = 32): MeshData {
         val b = MeshBuilder()

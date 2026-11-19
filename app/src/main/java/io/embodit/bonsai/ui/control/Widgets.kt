@@ -32,7 +32,26 @@ import com.pico.spatial.ui.design.Switch
 import androidx.compose.foundation.selection.toggleable
 import com.pico.spatial.ui.design.Text
 import io.embodit.bonsai.platform.TAG
+import io.embodit.bonsai.platform.BackKeys
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import io.embodit.bonsai.ui.theme.BonsaiColors
+
+/**
+ * D60: controller keys never press a window button. Buttons cannot take focus (so ENTER / DPAD_CENTER have nothing to
+ * click) and the window eats A / X / Y / ENTER / DPAD_CENTER before they reach anything; BACK / B go to the one handler
+ * (copied from circuit-lab v0.1.3).
+ */
+internal val PAD_KEYS = setOf(Key.ButtonA, Key.ButtonB, Key.ButtonX, Key.ButtonY, Key.Enter, Key.NumPadEnter, Key.DirectionCenter)
+
+internal fun Modifier.eatPadKeys(where: String): Modifier = onPreviewKeyEvent { e ->
+    if (BackKeys.route(e.nativeKeyEvent, "compose:$where")) true
+    else if (e.key in PAD_KEYS) { Log.i(TAG, "KEY eaten $where ${e.key}"); true } else false
+}
+
+internal val NoFocus: Modifier = Modifier.focusProperties { canFocus = false }
 
 /** Text that logs "OVERFLOW <panel>/<control>" whenever it is cut (profile D13; ui-audit runs read the log). */
 @Composable
@@ -54,7 +73,7 @@ internal fun Txt(
 @Composable
 internal fun PrimaryButton(text: String, tag: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Button(
-        onClick = onClick, modifier = modifier, enabled = enabled,
+        onClick = onClick, modifier = modifier.then(NoFocus), enabled = enabled,
         size = ButtonDefaults.Regular.copy(height = 80.dp, minWidth = 160.dp),
         shape = RoundedCornerShape(40.dp),
         colors = ButtonDefaults.buttonColors(containerColor = PicoTheme.colorScheme.interaction, contentColor = PicoTheme.colorScheme.labelPrimaryLight),
@@ -67,7 +86,7 @@ internal fun PrimaryButton(text: String, tag: String, onClick: () -> Unit, modif
 @Composable
 internal fun SecondaryButton(text: String, tag: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, danger: Boolean = false, tall: Boolean = false) {
     Button(
-        onClick = onClick, modifier = modifier, enabled = enabled,
+        onClick = onClick, modifier = modifier.then(NoFocus), enabled = enabled,
         size = ButtonDefaults.Regular.copy(height = if (tall) 64.dp else 56.dp, minWidth = 96.dp),
         shape = RoundedCornerShape(if (tall) 32.dp else 28.dp),
         colors = ButtonDefaults.buttonColors(
@@ -85,7 +104,7 @@ internal fun SecondaryButton(text: String, tag: String, onClick: () -> Unit, mod
 internal fun ToggleButton(text: String, tag: String, on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val fg = if (on) PicoTheme.colorScheme.labelPrimaryLight else PicoTheme.colorScheme.labelPrimary
     Button(
-        onClick = onClick, modifier = modifier, enabled = enabled,
+        onClick = onClick, modifier = modifier.then(NoFocus), enabled = enabled,
         size = ButtonDefaults.Regular.copy(height = 64.dp, minWidth = 96.dp),
         shape = RoundedCornerShape(32.dp),
         colors = ButtonDefaults.buttonColors(containerColor = if (on) PicoTheme.colorScheme.interaction else PicoTheme.colorScheme.fillSecondary, contentColor = fg),
@@ -111,7 +130,7 @@ internal fun OptionRow(label: String, tag: String, labelWidth: Dp = 112.dp, rowH
 internal fun SwitchRow(label: String, tag: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp))
-            .toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange),
+            .then(NoFocus).toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Txt(label, "$tag/label", style = PicoTheme.typography.labelLarge, modifier = Modifier.weight(1f))

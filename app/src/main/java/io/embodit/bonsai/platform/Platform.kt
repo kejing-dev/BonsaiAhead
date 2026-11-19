@@ -8,22 +8,27 @@ import android.os.SystemClock
 import android.util.Log
 import com.pico.spatial.ui.foundation.dsl.launch
 import com.pico.spatial.ui.platform.stub.SpatialLaunchActivity
-import io.embodit.bonsai.data.FileGardenStore
+import io.embodit.bonsai.data.PrefsForeseeStore
 import io.embodit.bonsai.data.SettingsStore
-import io.embodit.bonsai.domain.Garden
+import io.embodit.bonsai.domain.Foresee
 import io.embodit.bonsai.domain.Language
+import io.embodit.bonsai.domain.MetaJson
 import io.embodit.bonsai.domain.Settings
 import io.embodit.bonsai.domain.Sound
+import io.embodit.bonsai.domain.Species
+import io.embodit.bonsai.domain.TreeMeta
 import io.embodit.bonsai.mainApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
-const val TAG = "SnipGrow"
+const val TAG = "BonsaiAhead"
 
 class LaunchActivity : SpatialLaunchActivity()
 
@@ -35,6 +40,28 @@ class SpatialApplication : Application() {
         super.onCreate()
         io.embodit.bonsai.ui.scene.input.BoardInputLog.attach(this)
         graph = Graph(this)
+        // D60 补: controller B = system BACK. It never exits or sends the scene to the background: the window closed = reopen
+        // it, otherwise eaten (logged). Caught at the earliest layer of every window (BackKeys, copied from circuit-lab).
+        BackKeys.handler = { where -> graph.onBack(where) }
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {
+                BackKeys.wrap(a)
+                val ca = a as? androidx.activity.ComponentActivity
+                if (ca == null) { Log.w(TAG, "BACK guard: ${a.javaClass.simpleName} is not a ComponentActivity"); return }
+                ca.onBackPressedDispatcher.addCallback(ca, object : androidx.activity.OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() { BackKeys.handler("dispatcher:${a.javaClass.simpleName}") }
+                })
+                Log.i(TAG, "BACK guard on ${a.javaClass.simpleName}")
+            }
+            override fun onActivityPostCreated(a: android.app.Activity, b: android.os.Bundle?) { BackKeys.wrap(a); BackKeys.sweep("created") }
+            override fun onActivityStarted(a: android.app.Activity) { BackKeys.sweep("started") }
+            override fun onActivityResumed(a: android.app.Activity) { BackKeys.wrap(a); BackKeys.sweep("resumed") }
+            override fun onActivityPostResumed(a: android.app.Activity) { BackKeys.sweep("post-resumed") }
+            override fun onActivityPaused(a: android.app.Activity) {}
+            override fun onActivityStopped(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {}
+        })
         launch(::mainApp)
     }
 }
@@ -45,19 +72,26 @@ class Graph(context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val settings = SettingsStore(context)
     val sounds = SoundPlayer(context)
-    val store = FileGardenStore(context)
+    val store = PrefsForeseeStore(context)
     val window = WindowCtl()
     val sceneReady = MutableStateFlow(false)
-    val garden = Garden(
+
+    /** meta.json of every species (anchors, rings, leaf colour), read once (tiny files). */
+    private val metas = ConcurrentHashMap<String, TreeMeta>()
+    fun meta(s: Species): TreeMeta? = metas[s.id] ?: runCatching {
+        app.assets.open("trees/${s.file}/meta.json").use { MetaJson.treeMeta(it.readBytes().decodeToString()) }
+    }.onFailure { Log.e(TAG, "META ${s.id}", it) }.getOrNull()?.also { metas[s.id] = it }
+
+    val foresee = Foresee(
         scope = scope,
-        compute = Dispatchers.Default,
         clock = { SystemClock.uptimeMillis() },
         store = store,
         settings = { settings.value },
         onSettings = { settings.set(it) },
         onSound = { sounds.play(it) },
         log = { Log.i(TAG, it) },
-        random = Random(System.nanoTime()),
+        today = { LocalDate.now() },
+        meta = { meta(it) },
     )
 
     /** True when the shown language is Chinese (system language followed unless the user picked one). */
@@ -67,6 +101,15 @@ class Graph(context: Context) {
         Language.SYSTEM -> Locale.getDefault().language == "zh"
     }
 
+    /** D60 补: BACK / controller B never exits; the window closed = reopen it beside the pots, otherwise eaten. */
+    fun onBack(where: String) {
+        when {
+            foresee.state.value.tip != null -> { Log.i(TAG, "BACK $where -> close tip"); foresee.clearTip() }
+            !window.panelOpen -> { Log.i(TAG, "BACK $where -> reopen window"); window.open("back") }
+            else -> Log.i(TAG, "BACK $where -> eaten")
+        }
+    }
+
     init {
         scope.launch {
             settings.settings.collect { s ->
@@ -74,7 +117,8 @@ class Graph(context: Context) {
                 sounds.volumeLevel = s.volume
             }
         }
-        garden.start()
+        Species.ALL.forEach { meta(it) }
+        foresee.start()
     }
 
     companion object {
@@ -83,31 +127,25 @@ class Graph(context: Context) {
 }
 
 /**
- * Event sounds from assets/sounds (profile D51 / B30, design assets.sounds): every one is a cut of a CC0 recording
- * (build/sound-sources.md, tools/import_sounds.py). SoundPool, USAGE_GAME + SONIFICATION (design soundEngine). No loop, no
- * ambience (B24). One instance per kind at a time; the snip has three variants with a ±4 % pitch jitter; the singing-bowl
- * sounds sit 6 dB under the event sounds (B30).
+ * Event sounds from assets/sounds (profile D51 / B24, design assets.sounds): CC0 recordings cut by tools/import_sounds.py
+ * (build/sound-sources.md). SoundPool, USAGE_GAME + SONIFICATION. No loop, no ambience. One instance per kind at a time,
+ * the same sound is not repeated within 0.3 s while scrubbing (design muteRule).
  */
 class SoundPlayer(context: Context) {
     @Volatile var enabled = true
     @Volatile var volumeLevel = 2
 
-    private val pool = SoundPool.Builder().setMaxStreams(6)
+    private val pool = SoundPool.Builder().setMaxStreams(4)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
         .build()
     private val ids = HashMap<Sound, List<Int>>()
     private val loaded = HashSet<Int>()
     private val random = Random(11)
-    private val lastVariant = HashMap<Sound, Int>()
     private val lastStream = HashMap<Sound, Int>()
+    private val lastAt = HashMap<Sound, Long>()
 
-    private fun base(s: Sound) = when (s) {
-        Sound.SNIP -> "snip"; Sound.DROP -> "drop"; Sound.WATER -> "water"; Sound.GROW -> "grow"
-        Sound.DONE -> "done"; Sound.TICK -> "tick"; Sound.SEASON -> "season"
-    }
-
-    /** Relative gains: event sounds 1.0, the bowl sounds −6 dB (0.5), the soft tick −6 dB (B30 / design assets.sounds). */
-    private fun gain(s: Sound) = when (s) { Sound.GROW, Sound.DONE -> 0.5f; Sound.TICK -> 0.5f; Sound.DROP -> 0.8f; else -> 1f }
+    private fun base(s: Sound) = when (s) { Sound.TICK, Sound.TIP -> "tick"; Sound.SNIP -> "snip"; Sound.LEAVES -> "season" }
+    private fun gain(s: Sound) = when (s) { Sound.TICK -> 0.6f; Sound.TIP -> 0.6f; Sound.SNIP -> 1f; Sound.LEAVES -> 0.9f }
 
     init {
         pool.setOnLoadCompleteListener { _, id, status -> if (status == 0) synchronized(loaded) { loaded += id } }
@@ -122,17 +160,17 @@ class SoundPlayer(context: Context) {
 
     fun play(s: Sound) {
         if (!enabled) return
+        val now = SystemClock.uptimeMillis()
+        if (now - (lastAt[s] ?: 0L) < 300) return
+        lastAt[s] = now
         val variants = ids[s] ?: return
         val vol = VOLUME_PERCENT[volumeLevel.coerceIn(0, 2)] / 100f * gain(s)
-        var v = if (variants.size > 1) random.nextInt(variants.size) else 0
-        if (variants.size > 1 && v == lastVariant[s]) v = (v + 1) % variants.size
-        lastVariant[s] = v
-        val rate = if (s == Sound.SNIP) 0.96f + random.nextFloat() * 0.08f else 1f
-        val id = variants[v]
+        val id = variants[if (variants.size > 1) random.nextInt(variants.size) else 0]
         if (synchronized(loaded) { id !in loaded }) return
+        val rate = if (s == Sound.TIP) 1.05f else if (s == Sound.SNIP) 0.96f + random.nextFloat() * 0.08f else 1f
         lastStream[s]?.let { pool.stop(it) }
         lastStream[s] = pool.play(id, vol, vol, 1, 0, rate)
-        Log.i(TAG, "SOUND $s v=$v vol=${"%.2f".format(vol)}")
+        Log.i(TAG, "SOUND $s vol=${"%.2f".format(vol)}")
     }
 
     fun release() = pool.release()

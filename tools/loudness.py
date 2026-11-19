@@ -1,6 +1,6 @@
 """Loudness evidence (B20 / ui_gates loudness): renders 30 s of play from the app's own ogg cuts at the default volume
-(stop 2 = 100 %) with the app's gains (SoundPlayer: bowl / tick x 0.5, drop x 0.8) and timing (snip, drop 0.6 s later,
-water + grow together, a season look, the done bowl). Rendered, not recorded (kj-mbp-m5 has no audio loopback): the
+(stop 2 = 100 %) with the app's gains (SoundPlayer v0.2.0: tick x 0.6, snip x 1, dry leaves x 0.9) and timing of a scrub
+(stop tick, a prune day passed, a leaf-drop month passed). Rendered, not recorded (kj-mbp-m5 has no audio loopback): the
 first sounds on the headset go on the device check list. Prints the voiced-window RMS (ui_gates method) and the peak.
 
   ~/.factory-venv/bin/python tools/loudness.py OUT.wav
@@ -10,7 +10,7 @@ import numpy as np
 
 SR = 44100
 SND = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", "src", "main", "assets", "sounds")
-GAIN = {"snip": 1.0, "drop": 0.8, "water": 1.0, "grow": 0.5, "done": 0.5, "tick": 0.5, "season": 1.0}
+GAIN = {"snip": 1.0, "tick": 0.6, "season": 0.9}
 
 
 def load(name):
@@ -34,13 +34,11 @@ def main(out):
 
     t = 0.5
     k = 0
-    while t < 27:
-        for _ in range(3):  # three snips, each with its drop
-            put(["snip", "snip_2", "snip_3"][k % 3], t, 0.96 + rnd.random() * 0.08); put("drop", t + 0.6); k += 1; t += 1.6
-        put("tick", t); t += 0.6
-        put("water", t); put("grow", t); t += 2.2
+    while t < 28:  # scrubbing: a stop tick, a prune day passed (snip), a leaf-drop month passed (dry leaves)
+        put("tick", t); t += 0.8
+        put(["snip", "snip_2", "snip_3"][k % 3], t, 0.96 + rnd.random() * 0.08); k += 1; t += 0.9
         put("season", t); t += 1.0
-    put("done", 26.5)
+        put("tick", t); t += 0.7
     peak = np.abs(buf).max()
     if peak > 10 ** (-1 / 20):
         buf *= 10 ** (-1 / 20) / peak  # soft headroom only when overlaps pass -1 dBFS

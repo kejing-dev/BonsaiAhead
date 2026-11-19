@@ -1,5 +1,5 @@
-"""Snip & Grow icon (design appIcon): terracotta #A5573A round, a slanting little tree (dark brown trunk, two moss-green
-cloud pads) in a sand-white pot, a small pair of shears line art at the upper right. No text, flat (D2).
+"""Bonsai Ahead icon (design v3 appIcon): deep moss #3F5E3A round, a slanting little tree (dark brown trunk, two light
+green cloud pads) in a terracotta pot, a quarter clock arc with an arrow at the upper left (time ahead). No text, flat (D2).
 
   ~/.factory-venv/bin/python tools/build_icon.py [--icon512 out.png] [--preview out.png]
 
@@ -15,10 +15,11 @@ RES = os.path.join(ROOT, "app", "src", "main", "res")
 S = 1024
 SS = 4
 TERRA = (0xA5, 0x57, 0x3A)
+BG = (0x3F, 0x5E, 0x3A)
 SAND = (0xED, 0xE6, 0xD8)
 BARK = (0x4A, 0x33, 0x24)
-MOSS = (0x5E, 0x7D, 0x4A)
-MOSS_LIGHT = (0x86, 0xA8, 0x62)
+MOSS = (0x86, 0xB0, 0x5A)
+MOSS_LIGHT = (0xB5, 0xD2, 0x7A)
 
 
 def big(draw_fn):
@@ -29,15 +30,15 @@ def big(draw_fn):
 
 def layer_bg():
     def d(dr, k):
-        dr.ellipse((0, 0, 108 * k - 1, 108 * k - 1), fill=TERRA + (255,))
+        dr.ellipse((0, 0, 108 * k - 1, 108 * k - 1), fill=BG + (255,))
     return big(d)
 
 
 def layer_pot():
     def d(dr, k):
         P = lambda pts: [(x * k, y * k) for x, y in pts]
-        dr.polygon(P([(30, 70), (78, 70), (73, 82), (35, 82)]), fill=SAND + (255,))
-        dr.rectangle((28 * k, 67 * k, 80 * k, 71 * k), fill=SAND + (255,))
+        dr.polygon(P([(30, 70), (78, 70), (73, 82), (35, 82)]), fill=TERRA + (255,))
+        dr.rectangle((28 * k, 67 * k, 80 * k, 71 * k), fill=TERRA + (255,))
         # slanting trunk
         dr.line(P([(52, 68), (50, 58), (56, 48), (64, 40)]), fill=BARK + (255,), width=round(5 * k), joint="curve")
         dr.line(P([(51, 56), (40, 50)]), fill=BARK + (255,), width=round(3 * k))
@@ -50,12 +51,12 @@ def layer_crown():
         dr.ellipse((54 * k, 27 * k, 72 * k, 34 * k), fill=MOSS_LIGHT + (255,))
         dr.ellipse((26 * k, 44 * k, 48 * k, 55 * k), fill=MOSS + (255,))
         dr.ellipse((30 * k, 45 * k, 41 * k, 49 * k), fill=MOSS_LIGHT + (255,))
-        # shears (line art) upper right
-        w = round(2.2 * k)
-        dr.ellipse((72 * k, 18 * k, 79 * k, 25 * k), outline=SAND + (255,), width=w)
-        dr.ellipse((80 * k, 22 * k, 87 * k, 29 * k), outline=SAND + (255,), width=w)
-        dr.line((78 * k, 22 * k, 88 * k, 12 * k), fill=SAND + (255,), width=w)
-        dr.line((82 * k, 24 * k, 90 * k, 16 * k), fill=SAND + (255,), width=w)
+        # quarter clock arc + arrow head, upper left (time ahead)
+        w = round(3 * k)
+        dr.arc((14 * k, 14 * k, 44 * k, 44 * k), start=200, end=290, fill=SAND + (255,), width=w)
+        dr.polygon([(30 * k, 10.5 * k), (36 * k, 14.5 * k), (29.5 * k, 17.5 * k)], fill=SAND + (255,))
+        dr.line((29 * k, 29 * k, 29 * k, 21 * k), fill=SAND + (255,), width=round(2.4 * k))
+        dr.line((29 * k, 29 * k, 35 * k, 29 * k), fill=SAND + (255,), width=round(2.4 * k))
     return big(d)
 
 

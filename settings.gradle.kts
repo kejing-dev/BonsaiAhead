@@ -27,6 +27,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SnipAndGrow"
+rootProject.name = "BonsaiAhead"
 
 include(":app")

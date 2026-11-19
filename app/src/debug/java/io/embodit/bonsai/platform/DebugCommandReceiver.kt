@@ -4,72 +4,70 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import io.embodit.bonsai.domain.Confirm
-import io.embodit.bonsai.domain.Form
-import io.embodit.bonsai.domain.Kind
+import io.embodit.bonsai.domain.Growth
 import io.embodit.bonsai.domain.Language
 import io.embodit.bonsai.domain.Page
-import io.embodit.bonsai.domain.Season
+import io.embodit.bonsai.domain.Side
+import io.embodit.bonsai.domain.Species
 import io.embodit.bonsai.ui.scene.SceneHolder
 import io.embodit.bonsai.ui.scene.routeTap
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
- * QA / screenshot commands (debug builds only). Every input command goes through the same Garden calls as a real pinch or
- * button (D29), never a shortcut into the state.
+ * QA / screenshot commands (debug builds only). Every input command goes through the same Foresee calls as a real pinch,
+ * drag or button (D29), never a shortcut into the state.
  *   adb shell am broadcast -a io.embodit.bonsai.DEBUG -p io.embodit.bonsai --es cmd <cmd> --es a "<arg>"
- * Unknown / short arguments are logged and ignored (no exceptions).
+ * Unknown / short arguments are logged and ignored (no exceptions). `reset` clears everything first (lessons: reset).
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val cmd = intent.getStringExtra("cmd") ?: return
         val a = (intent.getStringExtra("a") ?: "").trim().trim('"')
         val g = Graph.from(context)
-        val garden = g.garden
+        val f = g.foresee
         Log.i(TAG, "DEBUG $cmd $a")
         runCatching {
             when (cmd) {
-                "reset" -> garden.reset()
-                "tap" -> routeTap(garden, if (a.toIntOrNull() != null) "pad:$a" else a) { g.window.open("debug") }
-                // the long shoot / pad / branch an input would hit first: the highest live pad (or the guide's long shoots)
-                "tappad" -> { val n = garden.tree.nodes.filter { it.alive && it.padR > 0 && (a != "long" || it.isLong) }.maxByOrNull { it.pos.y }; n?.let { garden.tapNode(it.id) } }
-                "tapside" -> { val n = garden.tree.nodes.filter { it.alive && it.padR > 0 && !it.isLong }.maxByOrNull { it.pos.x }; n?.let { garden.tapNode(it.id) } }
-                "taptrunk" -> garden.tapNode(garden.tree.nodes.first { it.kind == Kind.TRUNK && it.parent >= 0 }.id)
-                "stepin" -> garden.stepIn()
-                "stepout" -> garden.stepOut()
-                "snip" -> garden.confirmCut("debug")
-                "cancel" -> garden.cancelSelection()
-                "water" -> g.scope.launch { repeat(a.toIntOrNull() ?: 1) { garden.water("debug"); kotlinx.coroutines.delay(1200) } }
-                "undo" -> garden.undo()
-                "look" -> garden.setLook(Season.valueOf(a.uppercase()))
-                "lookcycle" -> garden.cycleLook()
-                "form" -> garden.startPot(Form.of(a), a.substringAfter(' ', "").toLongOrNull() ?: 2026L)
-                "pot" -> { val p = a.split(' '); garden.startPot(Form.of(p[0]), p.getOrNull(1)?.toLongOrNull() ?: 2026L) }
-                "autoprune" -> g.scope.launch { garden.autoYears(a.toIntOrNull() ?: 1) }
-                "randomcut" -> garden.randomCuts(a.toIntOrNull() ?: 3)
-                "cut" -> garden.cutAbout(a.toDoubleOrNull() ?: 0.5)
-                "turnbtn" -> routeTap(garden, if (a == "left") "turnL" else "turnR")
-                "drag" -> { garden.turnDrag(a.toFloatOrNull() ?: 30f); garden.turnRelease() }
-                "freeze" -> garden.freeze(a.toLongOrNull())
+                // fresh install: T0 2026-11-18 (QA fixed, stateModifiers), elm, day 0, guide on; `a` = another T0
+                "reset" -> { f.reset(if (a.isNotEmpty()) LocalDate.parse(a) else LocalDate.of(2026, 11, 18)); f.page(Page.FORESEE) }
+                "noguide" -> f.finishGuide()
+                "guide" -> f.setGuide(a.toIntOrNull() ?: 1)
+                "species" -> f.pick(Species.byId(a), "debug")
+                "t0" -> f.setT0(LocalDate.parse(a))
+                // the same scrub / release as the slider and the bead
+                "day" -> { f.scrub(a.toInt(), "debug"); f.release("debug") }
+                "scrub" -> f.scrub(a.toInt(), "debug")
+                "release" -> f.release("debug")
+                "stop" -> f.goStop(a.toInt(), "debug")
+                "tap" -> routeTap(g, a, "debug")
+                // tap the k-th yellow shoot of the left pot (default the first)
+                "tapyellow" -> { val gr = f.growth(); val d = f.state.value.day; val list = gr?.vigour?.indices?.filter { gr.shoot(Side.LEFT_ALONE, it, d).highlight } ?: emptyList(); list.getOrNull(a.toIntOrNull() ?: 0)?.let { routeTap(g, "shoot:0:$it", "debug") } ?: Log.i(TAG, "DEBUG tapyellow: none") }
+                "turn" -> routeTap(g, "pot", "debug")
+                "yaw" -> f.setYaw(a.toFloat())
+                "dashed" -> { val want = a != "off"; if (g.settings.value.dashed != want) f.toggleDashed() }
+                "page" -> when (a) { "pick" -> f.page(Page.PICK); "settings" -> f.page(Page.SETTINGS); "howto" -> f.howTo(true); else -> f.page(Page.FORESEE) }
+                "confirm" -> f.confirmExit(a != "off")
                 "lang" -> g.settings.update { it.copy(language = when (a) { "zh" -> Language.ZH; "en" -> Language.EN; else -> Language.SYSTEM }) }
                 "sound" -> g.settings.update { it.copy(sound = a != "off") }
-                "volume" -> g.settings.update { it.copy(volume = (a.toIntOrNull() ?: 2).coerceIn(0, 2)) }
-                "motion" -> g.settings.update { it.copy(motion = a != "off") }
-                "outline" -> g.settings.update { it.copy(outline = a != "off") }
-                "page" -> garden.page(when (a) { "shelf" -> Page.SHELF; "settings" -> Page.SETTINGS; else -> Page.TEND })
-                "howto" -> { garden.page(Page.SETTINGS); garden.howTo(a != "off") }
-                "confirm" -> garden.ask(when (a) { "exit" -> Confirm.EXIT; "change" -> Confirm.CHANGE; "delete" -> Confirm.DELETE; else -> null })
-                "pick" -> garden.openPick()
-                "done" -> garden.forceDone()
-                "shelve" -> garden.putOnShelf()
-                "view" -> garden.view(a.toIntOrNull() ?: 0)
-                "back" -> garden.backToMine()
-                "guide" -> garden.guideTo(a.toIntOrNull() ?: 1)
+                "volume" -> g.settings.update { it.copy(volume = a.toInt().coerceIn(0, 2)) }
                 "closepanel" -> g.window.closeControlOnly()
                 "openpanel" -> g.window.open("debug")
-                "s00hold" -> context.getSharedPreferences("debug", Context.MODE_PRIVATE).edit().putBoolean("s00hold", a != "off").apply()
-                "clear" -> { g.store.clearAll(); g.settings.update { it.copy(guideDone = false) } }
-                "dump" -> Log.i(TAG, "DUMP ${garden.dump()} ${SceneHolder.scene?.evidence()}")
+                "reopen" -> g.window.reopen()
+                "back" -> g.onBack("debug")
+                "s00hold" -> context.getSharedPreferences("debug", Context.MODE_PRIVATE).edit().putBoolean("s00hold", a == "on").apply()
+                // D59: n times scrub 0 <-> 365 and pick every species, through the real calls
+                "stress" -> g.scope.launch {
+                    val n = a.toIntOrNull() ?: 20
+                    repeat(n) { k ->
+                        for (d in listOf(365, 182, 30, 0)) { f.scrub(d, "stress"); delay(60) }
+                        f.release("stress")
+                        f.pick(Species.ALL[k % Species.ALL.size], "stress"); delay(400)
+                    }
+                    Log.i(TAG, "STRESS done n=$n ${SceneHolder.scene?.evidence()}")
+                }
+                "dump" -> Log.i(TAG, "DUMP ${f.dump()} stops=${Growth.STOPS.toList()} ${SceneHolder.scene?.evidence()} panel=${g.window.panelState}")
                 else -> Log.w(TAG, "DEBUG unknown $cmd")
             }
         }.onFailure { Log.w(TAG, "DEBUG $cmd failed: $it") }

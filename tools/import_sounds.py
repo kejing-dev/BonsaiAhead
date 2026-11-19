@@ -18,10 +18,6 @@ SR = 44100
 # id: (file, page, author, length s, attack s, peak dBFS, how many cuts)
 CUTS = {
     "snip": ("freesound-bonsai/563654_12640470-hq.mp3", "https://freesound.org/people/fernandogisbert/sounds/563654/", "fernandogisbert", 0.35, 0.002, -1.0, 3),
-    "drop": ("freesound-aura-sand/389611_6068748-hq.mp3", "https://freesound.org/people/_stubb/sounds/389611/", "_stubb", 0.30, 0.01, -1.0, 1),
-    "water": ("freesound-aquarium/173930.mp3", "https://freesound.org/people/JohnsonBrandEditing/sounds/173930/", "JohnsonBrandEditing", 1.0, 0.03, -1.0, 1),
-    "grow": ("freesound-zen-orb/417115_8224400.mp3", "https://freesound.org/people/dersinnsspace/sounds/417115/", "dersinnsspace", 2.0, 0.25, -1.0, 1),
-    "done": ("freesound-zen-orb/204915_710671.mp3", "https://freesound.org/people/brodjaman/sounds/204915/", "brodjaman", 3.0, 0.005, -1.0, 1),
     "tick": ("freesound-zen-orb/218460_3344538.mp3", "https://freesound.org/people/thomasjaunism/sounds/218460/", "thomasjaunism", 0.06, 0.001, -1.0, 1),
     "season": ("freesound-bonsai/531239_7414526-hq.mp3", "https://freesound.org/people/DigPro120/sounds/531239/", "DigPro120", 0.40, 0.02, -1.0, 1),
 }
@@ -74,7 +70,7 @@ def main():
             rms = 20 * np.log10(np.sqrt((y ** 2).mean()) + 1e-12)
             print("%-12s from %.2f s  %.2f s  peak %.1f dBFS  rms %.1f dBFS" % (name, s, len(y) / SR, peak, rms))
             rows.append("| %s | CC0 录音（freesound，%s）| %s | %s 起 %.2f s，截 %.2f s，峰值 %.0f dBFS |" % (name, author, page, f, s, length, peak))
-    md = ["# 剪一年 · 声音来源（D51：全部真实录音 CC0，无合成）", "",
+    md = ["# 盆景预见 v0.2.0 · 声音来源（D51：全部真实录音 CC0，无合成；拖时间刻度 tick、拖过剪月 snip、拖过落叶 season）", "",
           "| 文件 | 来源 | 页面 | 截取 |", "|---|---|---|---|"] + rows + ["",
           "许可：本机 ~/Downloads/cc0-sounds/*/LICENSE.txt（页面写明 Creative Commons 0）。截取脚本 tools/import_sounds.py。"]
     dst = os.path.join(FACTORY, "apps", "bonsai", "build", "sound-sources.md")

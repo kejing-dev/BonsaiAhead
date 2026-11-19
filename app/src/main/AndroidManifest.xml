@@ -10,13 +10,13 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SnipGrow"
+        android:theme="@style/Theme.BonsaiAhead"
         tools:targetApi="31">
 
         <activity
             android:name=".platform.LaunchActivity"
             android:exported="true"
-            android:theme="@style/Theme.SnipGrow">
+            android:theme="@style/Theme.BonsaiAhead">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -27,7 +27,7 @@
             <!-- The unique name/id of a WindowContainer -->
             <meta-data
                 android:name="pico.spatial.windowcontainer.id"
-                android:value="SnipGrowPot" />
+                android:value="BonsaiAheadPot" />
 
             <!-- Form/style of the WindowContainer
                 "0": Form.Automatic, a system default setting, set to Form.Planar currently (default)
@@ -43,7 +43,7 @@
              -->
             <meta-data
                 android:name="pico.spatial.windowcontainer.defaultsize"
-                android:value="1.0x0.9x0.78" />
+                android:value="1.3x0.85x0.7" />
 
             <!-- Unit of default size for the WindowContainer
                  "dp" — uses density-independent pixels (default)

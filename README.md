@@ -1,31 +1,40 @@
-# 剪一年 · Snip & Grow
+# 盆景预见 · Bonsai Ahead
 
-A tabletop bonsai in a PICO OS 6 Shared Space volume (Spatial SDK BOM 6.1.9), package `io.embodit.bonsai`, v0.1.0.
-Design contract: spatial-app-factory `apps/bonsai/design-package.json` (v2.1, gate B 2026-11-18 "都按默认": Shared Space
-volume + control window, 1 m wide pot, props pot B / stand B / tray B / stone A / can A, name 剪一年 · Snip & Grow).
-Skeleton from the factory's tabletop template (two containers, theme, SoundPool, debug receiver, procedural meshes, GLB
-calibration, window control, board-input template with DragTotal); the tree, growth, score, scene and pages are this
-app's own.
+A bonsai foresight tool in a PICO OS 6 Shared Space volume (Spatial SDK BOM 6.1.9), package `io.embodit.bonsai`, v0.2.0.
+Design contract: spatial-app-factory `apps/bonsai/design-package.json` (v3.0, gate B 2026-11-19: name 盆景预见 · Bonsai
+Ahead, tag on day 0 says just 今天 / Today, other questions default). Two copies of the same real bonsai (Tripo Smart
+Mesh pick) stand side by side: left **left alone**, right **trimmed as advised**; drag time from today to 1 month,
+6 months, 1 year and see both grow, change with the seasons and, on the left, grow yellow "to trim" shoots.
+
+v0.1.0 (cut / water / score / shelf, the procedural "green lumps") is gone; its history stays in git.
 
 ## Surfaces
-- **Pot volume** (default container `SnipGrowPot`, Volumetric 1.0 x 0.9 x 0.78 m, fixed scale, gravity aligned, base
-  panel hidden). Content root x 1.25 (design units, `Layout.K`); a uniform user resize scales the floor node too.
-  Tripo props (tools/calibrate_models.py -> `domain/ModelCalib.kt`), procedural tree (`domain/Pieces.kt`: 16-side trunk
-  tube, 12-side tapered twig segments, lumpy cloud pads), target outline shells, two 3D ◀ ▶ wooden turn buttons, the
-  season sign (AttachmentPanel, actual metres), one directional light.
-- **Control window** (`SnipGrowControl`, Planar 520 x 600 dp, `Placement.right(pot)`): native TabBar 盆景 / 架子 / 设置.
-  Pick page (换一盆) hides the TabBar. [退出应用] closes both containers, removes the tasks, ends the process.
+- **Volume** (default container `BonsaiAheadPot`, Volumetric 1.3 x 0.85 x 0.7 m, fixed scale, gravity aligned, base panel
+  hidden). Actual metres everywhere (no design units). Stone slab (Tripo tray-B stretched), two pots at x ±0.32, the 3D
+  time bar (wooden rail, draggable bead, four tap stops), pot tags, the stop strip and the tip label (AttachmentPanels).
+- **Control window** (`BonsaiAheadControl`, Planar 520 x 600 dp, `Placement.right(pot)`): native TabBar
+  预见 / 挑一盆 / 设置 (+ 怎么操作). The time slider is the main control (0..1 with the four stops evenly spaced).
 
 ## Code
 | Path | What |
 |---|---|
-| `domain/Tree.kt` | node graph, generation, one watering = one year, cut sites bud, rest year, merge, Score (32³ Dice), `Tuning` per form, test players |
-| `domain/Garden.kt` | the single state source: taps, cut / undo / water / turn / guide / done / shelf / pick, sounds |
-| `domain/Save.kt` | text codec for files/current.txt + shelf.txt (exact doubles; restore keeps the RNG state) |
-| `domain/Layout.kt` | fixed geometry (design units + actual metres), eyes, part boxes |
-| `ui/scene/*` | `BonsaiScene` (entities, per-frame tweens on the wall clock), `VolumeScreen` (input -> Garden, sign) |
-| `ui/control/*` | the window pages, `Thumb` 2D side view, `VolumeDrag` (B20 slider) |
-| `tools/` | `calibrate_models.py`, `import_sounds.py` (CC0 cuts), `build_icon.py`, `loudness.py` |
+| `domain/Species.kt` | the 5 species: monthly growth, prune months / rule, leaf drop, tint, height |
+| `domain/Growth.kt` | pure growth model (left alone / trimmed / highlight / recent cut), time bar mapping, `ShootPath` node layout + envelope |
+| `domain/Foresee.kt` | the single state source (D38): scrub / release / stops / turn / tip / pick / guide, settings, persistence |
+| `domain/ShootMesh.kt` | organic polygon leaf clusters, stems, dashed rings, cut caps (CPU meshes) |
+| `domain/MetaJson.kt` | reads `assets/trees/<file>/meta.json` (also in JVM tests) |
+| `ui/scene/ForeseeScene.kt` | entities: species kits (Tripo wood + 4 baked leaf variants) cached + toGlobal (D59), pooled shoot entities |
+| `ui/scene/VolumeScreen.kt` | SpatialView, attachments, board-input routing (bead drag, ticks, pot tap / drag, yellow shoots) |
+| `ui/control/ControlWindow.kt` | the window pages; pad keys eaten, buttons unfocusable (D60) |
+| `platform/BackKeys.kt` | BACK / controller B at the earliest layer of every window (copied from circuit-lab v0.1.3) |
+| `tools/prepare_trees.py` | Tripo GLB -> wood.glb + leaf_<sp/su/au/wi>.glb + meta.json (split by texture colour, anchors, rings) |
+| `tools/glb_jpeg.py` | re-encodes GLB textures as 1024 JPEG |
+| `tools/import_sounds.py`, `tools/loudness.py`, `tools/build_icon.py` | CC0 cuts, loudness evidence, icon |
+
+## Assets
+`~/.factory-venv/bin/python tools/prepare_trees.py ~/Downloads/bonsai-tripo/smart/textured` then
+`for f in app/src/main/assets/trees/*/*.glb; do ~/.factory-venv/bin/python -I tools/glb_jpeg.py $f $f 1024; done`.
+Picks and reasons: spatial-app-factory `apps/bonsai/design/tripo-picks/`.
 
 ## Build / test (kj-mbp-m5)
 ```bash
@@ -35,22 +44,21 @@ export JAVA_HOME=~/.pico/primer-cli/jdk/jdk-21.0.13+9/Contents/Home
 Offline release: add `-x lintVitalAnalyzeRelease -x lintVitalReportRelease -x lintVitalRelease` if lint is not cached.
 
 ## Debug broadcast (QA screenshots)
-`adb shell am broadcast -a io.embodit.bonsai.DEBUG -p io.embodit.bonsai --es cmd <cmd> --es a "<arg>"`, log tag `SnipGrow`.
-Every input command goes through the same Garden calls as a real pinch / button.
+`adb shell am broadcast -a io.embodit.bonsai.DEBUG -p io.embodit.bonsai --es cmd <cmd> --es a "<arg>"`, log tag
+`BonsaiAhead`. Every input command goes through the same Foresee calls as a real slider / pinch / button.
+`reset` = fresh install (T0 2026-11-18 unless `a` gives another date, elm, day 0, guide on); start every shot with it.
 
 | State | Commands (in order) |
 |---|---|
 | S00 | `s00hold on`, force-stop + launch, shoot within 10 s, `s00hold off` |
-| S03g first run | `clear`, force-stop + launch (guide step 1; `guide 2` / `guide 3` for the next steps) |
-| S03 | `reset` · `pot shakan 2026` (or chokkan / kengai) · `look summer|autumn|winter|spring` · `outline on|off` · `turnbtn left|right` · `drag 30` |
-| S04 | `reset` → `tappad` (highest pad) or `tappad long` → `stepin` (x2 for a bigger cut) |
-| S05 | S04 → `freeze 300` → `snip` (`freeze off` after) |
-| S06 | `freeze 300|800` → `water` |
-| S07 | `cut 0.5` (rest next year) → `water` (no growth) → `water` (grows) |
-| S09 | `autoprune 4` (auto player cuts + waters) or `done` |
-| S10 | `page shelf` (empty) · `done` → `shelve` |
-| S11 | shelf has an item → `view 0` · `confirm delete` |
-| S12 / S12h | `page settings` · `howto on` · `confirm exit` · `lang zh|en|system` |
-| S13 change | `page shelf` → `confirm change` → `pick` (S02) |
-| S14 | `closepanel` (sign becomes [打开面板]) · `openpanel` |
-| other | `taptrunk` · `undo` · `randomcut 3` · `water 3` · `dump` |
+| S01g guide | `reset`, force-stop + launch (step 1); `day 30` (step 2) |
+| S01 / S03 / S04 / S05 | `reset` → `noguide` → `species <wuzhensong / zhenbai / yushu / quemei / renshenrong>` → `day 0 / 30 / 182 / 365` (or `stop 0..3`) |
+| S02 scrubbing | `scrub 100` (no release) |
+| S06 tip | S05 → `tapyellow` (first yellow shoot) |
+| S06w winter bare | `species yushu` → `day 30` |
+| S07 pick | `page pick` |
+| S08 / S08h / S09 | `page settings` · `page howto` · `confirm on` |
+| S10 window closed | `closepanel` (strip shows [打开面板]) · `openpanel` |
+| turn / dashed / lang | `turn` · `yaw 90` · `dashed off` · `lang en` |
+| D59 | `stress 20` (scrub 0 ↔ 365 + pick every species, 20 rounds) |
+| other | `back` · `dump` |

@@ -1,12 +1,17 @@
 package io.embodit.bonsai.ui.scene
 
+import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,7 +21,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,8 +47,9 @@ import com.pico.spatial.ui.foundation.dsl.unregisterSystem
 import com.pico.spatial.ui.geometry.Offset3D
 import com.pico.spatial.ui.platform.containers.LocalSpatialNavigator
 import io.embodit.bonsai.R
-import io.embodit.bonsai.domain.Garden
-import io.embodit.bonsai.domain.GardenState
+import io.embodit.bonsai.domain.ForeseeState
+import io.embodit.bonsai.domain.Growth
+import io.embodit.bonsai.domain.Side
 import io.embodit.bonsai.platform.Graph
 import io.embodit.bonsai.platform.TAG
 import io.embodit.bonsai.ui.Texts
@@ -55,12 +60,13 @@ import io.embodit.bonsai.ui.scene.input.InputSource
 import io.embodit.bonsai.ui.scene.input.Offset3M
 import io.embodit.bonsai.ui.scene.input.TargetResolver
 import io.embodit.bonsai.ui.scene.input.boardInput
-import io.embodit.bonsai.ui.theme.BonsaiColors
 import io.embodit.bonsai.ui.theme.localized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
@@ -70,25 +76,35 @@ class PotFrameSystem : System() {
 }
 
 internal object SceneHolder {
-    @Volatile var scene: BonsaiScene? = null
+    @Volatile var scene: ForeseeScene? = null
 }
 
-private const val SIGN = "sign"
-
 /**
- * The pot volume (default container). Opens the control window beside it, builds the scene in two stages (S00 shared
- * pieces and the tree first, the Tripo props next) and routes every pinch / trigger / drag on a holder to [Garden]
- * through the factory board-input template (D50: hand ray, controller ray, eye-hand alike).
+ * The volume (default container): two pots of the same tree on a stone slab, the 3D time bar and the tags. Opens the
+ * control window beside it, builds the scene in stages (S00 stand-ins and the time bar first, the Tripo slab and the
+ * species kit next) and routes every pinch / trigger / drag through the factory board-input template (D50: hand ray,
+ * controller ray, eye-hand alike) into [io.embodit.bonsai.domain.Foresee].
  */
 @Composable
 fun VolumeScreen() {
     val context = LocalContext.current
     val graph = remember(context) { Graph.from(context) }
-    val st by graph.garden.state.collectAsStateWithLifecycle()
+    val st by graph.foresee.state.collectAsStateWithLifecycle()
     val settings by graph.settings.settings.collectAsStateWithLifecycle()
     val navigator = LocalSpatialNavigator.current
-    val scene = remember { BonsaiScene() }
+    val loadMutex = remember { Mutex() }
+    var contentRef by remember { mutableStateOf<((Entity) -> Unit)?>(null) }
+    val cache = remember { HashMap<String, Entity>() }
+    val scene = remember {
+        ForeseeScene(
+            loadModel = { path ->
+                cache[path] ?: withContext(NonCancellable + Dispatchers.Main) { Entity.loadSuspend("asset://$path") }.also { it.enabled = false; contentRef?.invoke(it); cache[path] = it }
+            },
+            metaOf = { graph.meta(it) },
+        )
+    }
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
+    var kitTick by remember { mutableStateOf(0) }
 
     DisposableEffect(navigator) {
         graph.window.attach(navigator)
@@ -100,13 +116,26 @@ fun VolumeScreen() {
         while (!scene.ready && SystemClock.elapsedRealtime() - t0 < 15_000) delay(30)
         graph.sceneReady.value = true
         Log.i(TAG, "SCENE ready=${scene.ready} after ${SystemClock.elapsedRealtime() - t0} ms")
-        for (s in listOf(1000L, 2000L, 2000L)) { delay(s); Log.i(TAG, "DIAG panel=${graph.window.panelState} ${graph.garden.dump()} ${scene.evidence()}") }
+        for (s in listOf(1000L, 2000L, 2000L)) { delay(s); Log.i(TAG, "DIAG panel=${graph.window.panelState} ${graph.foresee.dump()} ${scene.evidence()}") }
+    }
+    // species kits load on demand (picked species first), one at a time
+    LaunchedEffect(st.species, contentRef) {
+        if (contentRef == null) return@LaunchedEffect
+        loadMutex.withLock { runCatching { scene.kitFor(st.species) }.onFailure { Log.e(TAG, "KIT ${st.species.id} failed", it) } }
+        kitTick++
+        scene.markReady()
+    }
+    // the tip label fades after 2.5 s (design S06)
+    LaunchedEffect(st.tip) {
+        val tip = st.tip ?: return@LaunchedEffect
+        delay((tip.untilMs - SystemClock.uptimeMillis()).coerceAtLeast(0))
+        if (graph.foresee.state.value.tip == tip) graph.foresee.clearTip()
     }
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
             when (e) {
-                androidx.lifecycle.Lifecycle.Event.ON_STOP -> { Log.i(TAG, "LIFECYCLE background"); graph.garden.onBackground() }
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> { Log.i(TAG, "LIFECYCLE background"); graph.foresee.onBackground() }
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> if (graph.window.panelState == "ON_DESTROY") graph.window.open("resume")
                 else -> Unit
             }
@@ -123,142 +152,168 @@ fun VolumeScreen() {
             scene.dispose()
         }
     }
-    scene.capSites = remember(st.version) { graph.garden.tree.cutSites.map { it.nodeId }.toSet() }
 
     SpatialView(
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { viewSize = it }
-            .boardInput(PotTargets, remember(graph, scene) { PotListener(graph, scene) }, BoardInputConfig(dragStartM = 0.02f, logTag = TAG)),
-        attachments = { AttachmentPanel(SIGN) { SignRoot(graph) } },
+            .boardInput(PotTargets, remember(graph, scene) { PotListener(graph, scene) }, BoardInputConfig(dragStartM = 0.015f, logTag = TAG)),
+        attachments = {
+            AttachmentPanel(TAG0) { Localized(graph) { PotTag(it, Side.LEFT_ALONE, graph) } }
+            AttachmentPanel(TAG1) { Localized(graph) { PotTag(it, Side.TRIMMED, graph) } }
+            AttachmentPanel(TICKS) { Localized(graph) { TickStrip(it, graph) } }
+            AttachmentPanel(TIP) { Localized(graph) { TipLabel(it) } }
+        },
         initial = { content, attachments ->
+            contentRef = { e -> content.addEntity(e) }
             content.addEntity(scene.root)
             runCatching { scene.installBasics() }.onFailure { Log.e(TAG, "BASICS failed", it) }
-            scene.attachSign(attachments.entity(SIGN))
-            val prefs = context.getSharedPreferences("debug", android.content.Context.MODE_PRIVATE)
+            for (n in listOf(TAG0, TAG1, TICKS, TIP)) scene.attach(n, attachments.entity(n))
+            val prefs = context.getSharedPreferences("debug", Context.MODE_PRIVATE)
             if (prefs.getBoolean("s00hold", false)) { Log.i(TAG, "S00 hold 10 s"); delay(10_000) }
-            // the Tripo props load in their own coroutine: initial returns at once so update() (region, tree) runs (S00)
-            graph.scope.launch {
-                val cache = HashMap<String, Entity>()
-                runCatching {
-                    scene.installProps { n ->
-                        cache.getOrPut(n) { withContext(NonCancellable + Dispatchers.Main) { Entity.loadSuspend("asset://models/$n.glb") }.also { it.enabled = false; content.addEntity(it) } }
-                    }
-                }.onFailure { Log.e(TAG, "PROPS failed", it) }
-            }
+            graph.scope.launch { runCatching { loadMutex.withLock { scene.installSlab() } }.onFailure { Log.e(TAG, "SLAB failed", it) } }
         },
         update = { content, _ ->
             if (viewSize != IntSize.Zero) {
                 val corner = content.convertPosition(Vector3.ZERO, ViewCoordinateSpace.Local, content.localSpatialCoordinateSpace)
                 scene.setRegion(abs(corner.y))
             }
+            @Suppress("UNUSED_EXPRESSION") kitTick
             scene.apply(st, settings)
+            scene.showTip(st.tip?.anchor)
         },
     )
 }
 
-/** The season sign is its own composition: it reads state + language itself (附着面板拿不到外层 CompositionLocal). */
+private const val TAG0 = "tag:0"
+private const val TAG1 = "tag:1"
+private const val TICKS = "ticks"
+private const val TIP = "tip"
+
+/** Attachment panels are their own compositions: they read state + language themselves (附着面板拿不到外层 CompositionLocal). */
 @Composable
-private fun SignRoot(graph: Graph) {
+private fun Localized(graph: Graph, content: @Composable (ForeseeState) -> Unit) {
     val base = LocalContext.current
-    val st by graph.garden.state.collectAsStateWithLifecycle()
+    val st by graph.foresee.state.collectAsStateWithLifecycle()
     val s by graph.settings.settings.collectAsStateWithLifecycle()
-    key(s.language) {
-        CompositionLocalProvider(LocalContext provides base.localized(s.language)) { Sign(st, graph) }
+    key(s.language) { CompositionLocalProvider(LocalContext provides base.localized(s.language)) { content(st) } }
+}
+
+private val WOOD = Color(0xF04A3524)
+private val ON_WOOD = Color(0xFFF3E7CF)
+private val ON_WOOD_DIM = Color(0xFFE2D2B0)
+
+/** 250 x 75 dp ≈ 0.20 x 0.06 m wooden tag in front of each pot (design panels.potTags). */
+@Composable
+private fun PotTag(st: ForeseeState, side: Side, graph: Graph) {
+    val ctx = LocalContext.current
+    val g = graph.foresee.growth(st)
+    val (l1, l2) = Texts.tag(ctx, st, side, g)
+    Column(Modifier.size(250.dp, 75.dp).clip(RoundedCornerShape(12.dp)).background(WOOD).padding(horizontal = 10.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text(l1, color = ON_WOOD, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
+            onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW tag$side/1 \"$l1\"") })
+        if (l2.isNotEmpty()) Text(l2, color = ON_WOOD_DIM, fontSize = 17.sp, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
+            onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW tag$side/2 \"$l2\"") })
     }
 }
 
-/** 375 x 100 dp ≈ 0.30 x 0.08 m: only the short keys of design signStrings; the same source as the window (D38). */
+/** 1300 x 62 dp ≈ 1.04 x 0.05 m strip under the rail: the four stop names, the current one bold (design panels.timeTicks). */
 @Composable
-private fun Sign(st: GardenState, graph: Graph) {
+private fun TickStrip(st: ForeseeState, graph: Graph) {
     val ctx = LocalContext.current
-    Box(Modifier.size(375.dp, 100.dp).clip(RoundedCornerShape(22.dp)).background(Color(0xF2F6F1E6)), contentAlignment = Alignment.Center) {
-        if (graph.window.panelState == "ON_DESTROY") {
-            Button(onClick = { graph.window.open("sign") }, modifier = Modifier.size(340.dp, 84.dp)) {
+    Box(Modifier.size(1300.dp, 62.dp), contentAlignment = Alignment.Center) {
+        if (!graph.window.panelOpen && graph.window.panelState != "never") {
+            Button(onClick = { graph.window.open("ticks") }, modifier = Modifier.size(360.dp, 56.dp)) {
                 // design-style: inherited-content-color Button
-                Text(ctx.getString(R.string.sign_open_panel), fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+                Text(ctx.getString(R.string.open_panel), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             }
-        } else {
-            val text = Texts.sign(ctx, st, SystemClock.uptimeMillis())
-            Text(text, color = BonsaiColors.Ink, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp),
-                onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW sign \"$text\"") })
+        } else Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            Growth.STOPS.forEachIndexed { k, d ->
+                val on = st.day == d
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text(Texts.stop(ctx, k), color = if (on) Color(0xFF2B2418) else Color(0xFF4A4134), fontSize = if (on) 26.sp else 22.sp,
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, softWrap = false,
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Color(0xE6F2E6C8) else Color(0xB3EFE8DA)).padding(horizontal = 14.dp, vertical = 2.dp),
+                        onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW ticks/$k") })
+                }
+            }
         }
     }
 }
 
-/** Hit entity (or an ancestor) -> the holder name: pad:<id>, seg:<id>, trunk, ring, pot, tray, can, turnL, turnR. */
+/** 200 x 62 dp ≈ 0.16 x 0.05 m label beside a tapped yellow shoot (design S06). */
+@Composable
+private fun TipLabel(st: ForeseeState) {
+    val ctx = LocalContext.current
+    val tip = st.tip ?: return
+    val txt = Texts.tip(ctx, st.species, tip.month)
+    Box(Modifier.width(260.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xF7FFFDF3)).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+        Text("✂ $txt", color = Color(0xFF2B2418), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, textAlign = TextAlign.Center,
+            onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW tip \"$txt\"") })
+    }
+}
+
+/** Hit entity (or an ancestor) -> the holder name: bead, tick:k, pot, shoot:0:i. */
 internal object PotTargets : TargetResolver<String> by TargetResolver.byName(PotTargets::targetOf) {
-    private val FIXED = setOf("trunk", "ring", "pot", "tray", "can", "turnL", "turnR")
     fun targetOf(name: String): String? = when {
-        name in FIXED -> name
-        name.startsWith("pad:") || name.startsWith("seg:") -> name.takeIf { it.substring(4).toIntOrNull() != null }
+        name == "bead" || name == "pot" -> name
+        name.startsWith("tick:") -> name.takeIf { it.substring(5).toIntOrNull() != null }
+        name.startsWith("shoot:0:") -> name.takeIf { it.substring(8).toIntOrNull() != null }
         else -> null
     }
 
+    /** The logged hit path (child < parent < …) -> holder, the same walk the template does on a real hit. */
     fun resolvePath(path: List<String>): String? = io.embodit.bonsai.ui.scene.input.resolvePath(path, ::targetOf)
 }
 
-/** Holder name -> the one garden call (the debug broadcast and the window use the same calls). */
-internal fun routeTap(garden: Garden, name: String?, openPanel: () -> Unit = {}) {
+/** Holder name -> the one Foresee call (the debug broadcast uses the same). */
+internal fun routeTap(graph: Graph, name: String?, src: String) {
+    val f = graph.foresee
     when {
         name == null -> Unit
-        name.startsWith("pad:") || name.startsWith("seg:") -> garden.tapNode(name.substring(4).toInt())
-        name == "trunk" -> garden.tapNode(0.coerceAtLeast(garden.tree.nodes.indexOfFirst { it.kind == io.embodit.bonsai.domain.Kind.TRUNK && it.parent >= 0 }))
-        name == "ring" -> garden.tapRing()
-        name == "pot" || name == "tray" -> garden.tapBase(name)
-        name == "can" -> garden.water("3D can")
-        name == "turnL" -> garden.turnStep(-1)
-        name == "turnR" -> garden.turnStep(1)
-        name == "sign" -> openPanel()
+        name == "pot" -> f.turnStep(src)
+        name == "bead" -> Unit
+        name.startsWith("tick:") -> f.goStop(name.substring(5).toInt(), src)
+        name.startsWith("shoot:0:") -> f.tapShoot(name.substring(8).toInt(), src)
     }
 }
 
-/** Drag on the pot / stand turns it (design turnInput: 720°/m horizontal, per-event deltas summed by the template). */
-internal class PotListener(private val graph: Graph, private val scene: BonsaiScene) : BoardInputListener<String> {
-    private var dragging = false
+/** Drag on the bead scrubs the time (per-event deltas summed by the template, D53); drag on a pot turns both. */
+internal class PotListener(private val graph: Graph, private val scene: ForeseeScene) : BoardInputListener<String> {
+    private var mode: String? = null
+    private var startX = 0f
     private var startYaw = 0f
-    private var holdJob: kotlinx.coroutines.Job? = null
 
     override fun onTap(target: String?, source: InputSource, position: Offset3D?) {
         BoardInputLog.write(TAG, "INPUT tap src=${source.label} target=$target")
-        if (target == "turnL" || target == "turnR") scene.pressed(target)
-        routeTap(graph.garden, target) { graph.window.open("sign") }
+        routeTap(graph, target, "3D ${source.label}")
     }
 
-    /** ◀ ▶ held: after 0.5 s another 45° every 0.4 s (design turnButtons). */
-    override fun onPress(target: String?, source: InputSource) {
-        if (target != "turnL" && target != "turnR") return
-        holdJob?.cancel()
-        holdJob = graph.scope.launchHold(if (target == "turnL") -1 else 1)
-    }
-
-    private fun kotlinx.coroutines.CoroutineScope.launchHold(d: Int) = launch {
-        delay(500)
-        while (true) { graph.garden.turnStep(d); delay(400) }
-    }
-
-    override fun onRelease() { holdJob?.cancel(); holdJob = null }
-
-    // gate:allow shared-drag 盆景桌面件，拖动为辅，主路径 3D 转盆钮
+    // gate:allow shared-drag 木珠拖时间、捏盆转，都是锦上添花；主路径是控制窗滑条 + 点刻度 + 点盆转 90°（门 B 已同意 Shared Space）
     override fun onDragStart(target: String, source: InputSource): Boolean {
         BoardInputLog.write(TAG, "INPUT drag src=${source.label} target=$target")
-        if (target == "turnL" || target == "turnR") return true
-        if (target != "pot") { routeTap(graph.garden, target); return true }
-        startYaw = graph.garden.state.value.yawDeg
-        dragging = true
+        when {
+            target == "bead" -> { mode = "bead"; startX = Growth.dayToX(graph.foresee.state.value.day) }
+            target == "pot" -> { mode = "pot"; startYaw = graph.foresee.state.value.yawDeg }
+            else -> { routeTap(graph, target, "3D ${source.label}"); mode = null }
+        }
         return true
     }
 
     override fun onDragMove(totalM: Offset3M) {
-        if (!dragging) return
-        val deg = (totalM.x / scene.scaleNow * 720f).coerceIn(-720f, 720f)
-        graph.garden.turnDrag(startYaw + deg)
+        when (mode) {
+            "bead" -> graph.foresee.scrub(Growth.xToDay(startX + totalM.x / scene.scaleNow), "bead")
+            "pot" -> graph.foresee.turnTo(startYaw + (totalM.x / scene.scaleNow * 720f).coerceIn(-720f, 720f))
+        }
     }
 
-    /** D50 hover: the system HoverEffect lights the pad / branch / button; the app only logs (hint, never a state change). */
-    override fun onHover(target: String?, source: InputSource) {}
+    override fun onDragEnd() { end() }
+    override fun onDragCancel() { end() }
+    private fun end() {
+        when (mode) { "bead" -> graph.foresee.release("bead"); "pot" -> graph.foresee.turnRelease() }
+        mode = null
+    }
 
-    override fun onDragEnd() { if (dragging) graph.garden.turnRelease(); dragging = false }
-    override fun onDragCancel() { if (dragging) graph.garden.turnRelease(); dragging = false }
+    override fun onHover(target: String?, source: InputSource) {}
 }
