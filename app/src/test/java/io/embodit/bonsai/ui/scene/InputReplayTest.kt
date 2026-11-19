@@ -24,5 +24,11 @@ class InputReplayTest {
         assertNull(r("wood:0 < turn:0 < potBase:0 < floor < root"))
         assertNull(r("railMesh < floor < root"))
     }
+    /** Regression (headset crash 2026-11-19): the object the live resolver lives in must be usable after init. */
+    @Test fun liveResolverFunctionIsNotNull() {
+        for (n in listOf("bead", "pot", "tick:0", "tick:3", "shoot:0:5")) assertEquals(n, PotTargets.targetOf(n))
+        assertEquals("tick:2", PotTargets.nameToTarget("tick:2"))
+    }
+
     @Test fun badNumbersIgnored() { assertNull(r("tick:x < floor")); assertNull(r("shoot:0:x < turn:0")) }
 }

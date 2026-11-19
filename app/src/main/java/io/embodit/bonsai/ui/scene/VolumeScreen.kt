@@ -254,17 +254,29 @@ private fun TipLabel(st: ForeseeState) {
     }
 }
 
-/** Hit entity (or an ancestor) -> the holder name: bead, tick:k, pot, shoot:0:i. */
-internal object PotTargets : TargetResolver<String> by TargetResolver.byName(PotTargets::targetOf) {
-    fun targetOf(name: String): String? = when {
-        name == "bead" || name == "pot" -> name
-        name.startsWith("tick:") -> name.takeIf { it.substring(5).toIntOrNull() != null }
-        name.startsWith("shoot:0:") -> name.takeIf { it.substring(8).toIntOrNull() != null }
-        else -> null
-    }
+/** Hit entity name -> the holder name: bead, tick:k, pot, shoot:0:i (top-level: nothing to capture before it exists). */
+internal fun potTarget(name: String): String? = when {
+    name == "bead" || name == "pot" -> name
+    name.startsWith("tick:") -> name.takeIf { it.substring(5).toIntOrNull() != null }
+    name.startsWith("shoot:0:") -> name.takeIf { it.substring(8).toIntOrNull() != null }
+    else -> null
+}
+
+/**
+ * The live resolver of the volume. v0.2.0 first build declared it `object PotTargets : TargetResolver<String> by
+ * TargetResolver.byName(PotTargets::targetOf)`: the delegate is built while the object itself is still being built, so the
+ * bound reference captured a null receiver and the first real 3D tap crashed (headset 2026-11-19, NPE in targetOf). The
+ * delegate now wraps a top-level function, and the replay test calls the very function the delegate holds.
+ */
+internal object PotTargets : TargetResolver<String> {
+    /** The exact function the live resolver uses (InputReplayTest calls it). */
+    val nameToTarget: (String) -> String? = ::potTarget
+    private val delegate = TargetResolver.byName(nameToTarget)
+    override fun resolve(entity: Entity): String? = delegate.resolve(entity)
+    fun targetOf(name: String): String? = nameToTarget(name)
 
     /** The logged hit path (child < parent < …) -> holder, the same walk the template does on a real hit. */
-    fun resolvePath(path: List<String>): String? = io.embodit.bonsai.ui.scene.input.resolvePath(path, ::targetOf)
+    fun resolvePath(path: List<String>): String? = io.embodit.bonsai.ui.scene.input.resolvePath(path, nameToTarget)
 }
 
 /** Holder name -> the one Foresee call (the debug broadcast uses the same). */
