@@ -18,12 +18,12 @@ SR = 44100
 # id: (file, page, author, length s, attack s, peak dBFS, how many cuts)
 CUTS = {
     "snip": ("freesound-bonsai/563654_12640470-hq.mp3", "https://freesound.org/people/fernandogisbert/sounds/563654/", "fernandogisbert", 0.35, 0.002, -1.0, 3),
-    "drop": ("freesound-aura-sand/389611_6068748-hq.mp3", "https://freesound.org/people/_stubb/sounds/389611/", "_stubb", 0.30, 0.01, -3.0, 1),
+    "drop": ("freesound-aura-sand/389611_6068748-hq.mp3", "https://freesound.org/people/_stubb/sounds/389611/", "_stubb", 0.30, 0.01, -1.0, 1),
     "water": ("freesound-aquarium/173930.mp3", "https://freesound.org/people/JohnsonBrandEditing/sounds/173930/", "JohnsonBrandEditing", 1.0, 0.03, -1.0, 1),
-    "grow": ("freesound-zen-orb/417115_8224400.mp3", "https://freesound.org/people/dersinnsspace/sounds/417115/", "dersinnsspace", 2.0, 0.25, -7.0, 1),
-    "done": ("freesound-zen-orb/204915_710671.mp3", "https://freesound.org/people/brodjaman/sounds/204915/", "brodjaman", 3.0, 0.005, -7.0, 1),
-    "tick": ("freesound-zen-orb/218460_3344538.mp3", "https://freesound.org/people/thomasjaunism/sounds/218460/", "thomasjaunism", 0.06, 0.001, -7.0, 1),
-    "season": ("freesound-bonsai/531239_7414526-hq.mp3", "https://freesound.org/people/DigPro120/sounds/531239/", "DigPro120", 0.40, 0.02, -3.0, 1),
+    "grow": ("freesound-zen-orb/417115_8224400.mp3", "https://freesound.org/people/dersinnsspace/sounds/417115/", "dersinnsspace", 2.0, 0.25, -1.0, 1),
+    "done": ("freesound-zen-orb/204915_710671.mp3", "https://freesound.org/people/brodjaman/sounds/204915/", "brodjaman", 3.0, 0.005, -1.0, 1),
+    "tick": ("freesound-zen-orb/218460_3344538.mp3", "https://freesound.org/people/thomasjaunism/sounds/218460/", "thomasjaunism", 0.06, 0.001, -1.0, 1),
+    "season": ("freesound-bonsai/531239_7414526-hq.mp3", "https://freesound.org/people/DigPro120/sounds/531239/", "DigPro120", 0.40, 0.02, -1.0, 1),
 }
 
 

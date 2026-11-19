@@ -137,12 +137,15 @@ fun VolumeScreen() {
             scene.attachSign(attachments.entity(SIGN))
             val prefs = context.getSharedPreferences("debug", android.content.Context.MODE_PRIVATE)
             if (prefs.getBoolean("s00hold", false)) { Log.i(TAG, "S00 hold 10 s"); delay(10_000) }
-            val cache = HashMap<String, Entity>()
-            runCatching {
-                scene.installProps { n ->
-                    cache.getOrPut(n) { withContext(NonCancellable + Dispatchers.Main) { Entity.loadSuspend("asset://models/$n.glb") }.also { it.enabled = false; content.addEntity(it) } }
-                }
-            }.onFailure { Log.e(TAG, "PROPS failed", it) }
+            // the Tripo props load in their own coroutine: initial returns at once so update() (region, tree) runs (S00)
+            graph.scope.launch {
+                val cache = HashMap<String, Entity>()
+                runCatching {
+                    scene.installProps { n ->
+                        cache.getOrPut(n) { withContext(NonCancellable + Dispatchers.Main) { Entity.loadSuspend("asset://models/$n.glb") }.also { it.enabled = false; content.addEntity(it) } }
+                    }
+                }.onFailure { Log.e(TAG, "PROPS failed", it) }
+            }
         },
         update = { content, _ ->
             if (viewSize != IntSize.Zero) {
@@ -252,6 +255,9 @@ internal class PotListener(private val graph: Graph, private val scene: BonsaiSc
         val deg = (totalM.x / scene.scaleNow * 720f).coerceIn(-720f, 720f)
         graph.garden.turnDrag(startYaw + deg)
     }
+
+    /** D50 hover: the system HoverEffect lights the pad / branch / button; the app only logs (hint, never a state change). */
+    override fun onHover(target: String?, source: InputSource) {}
 
     override fun onDragEnd() { if (dragging) graph.garden.turnRelease(); dragging = false }
     override fun onDragCancel() { if (dragging) graph.garden.turnRelease(); dragging = false }

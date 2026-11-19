@@ -1,0 +1,2 @@
+stone.glb: a grey scholar rock with moss (design assetFiles stone-A "upright grey scholar rock with moss"): grey is its colour.
+tray.glb: dark slate slab with pale beige raked sand (design tray-B): the sand is meant to be light; emissive floor x 0.25 keeps it from reading black.

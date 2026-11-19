@@ -74,7 +74,7 @@ internal class BonsaiScene {
     private val fallen = Entity().apply { setName("fallen") }
 
     private val all = ArrayList<Resource>()
-    private fun <T : Resource> T.kept(): T { synchronized(all) { all += this }; return this }
+    private fun <T : Resource> T.kept(): T { runCatching { toGlobal() }; synchronized(all) { all += this }; return this }
 
     private lateinit var segMesh: List<MeshResource>
     private lateinit var padMesh: List<MeshResource>
@@ -311,7 +311,8 @@ internal class BonsaiScene {
                 segs[id]?.let { se ->
                     val o = model(segMesh[0], red, "selseg:$id")
                     o.transform().setPosition(se.transform().position); o.transform().setQuaternion(se.transform().quaternion)
-                    val sc = se.transform().scaleVector; o.transform().setScaleVector(Vector3(sc.x * 1.5f, sc.y, sc.z * 1.5f))
+                    val sc = se.children().firstOrNull()?.transform()?.scaleVector ?: Vector3(0.003f, 0.02f, 0.003f)
+                    o.transform().setScaleVector(Vector3(sc.x * 1.6f, sc.y, sc.z * 1.6f))
                     tree.addChild(o); overlays += o
                 }
             }

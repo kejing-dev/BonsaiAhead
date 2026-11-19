@@ -1,57 +1,59 @@
-"""Offline loudness evidence (B20 / ui_gates loudness): renders 30 s of a fast game from the app's own WAVs at the
-default volume (gain 1.0), with the app's timing (stone flight 220 ms, retract window 500 ms, AI >= 400 ms) and
-the +-5 % rate variation, then prints RMS / peak.  kj-mbp-m5 has no audio loopback, so the emulator output itself
-cannot be recorded; record on a headset / loopback machine to cross-check.
+"""Loudness evidence (B20 / ui_gates loudness): renders 30 s of play from the app's own ogg cuts at the default volume
+(stop 2 = 100 %) with the app's gains (SoundPlayer: bowl / tick x 0.5, drop x 0.8) and timing (snip, drop 0.6 s later,
+water + grow together, a season look, the done bowl). Rendered, not recorded (kj-mbp-m5 has no audio loopback): the
+first sounds on the headset go on the device check list. Prints the voiced-window RMS (ui_gates method) and the peak.
 
-  python3 tools/loudness.py OUT.wav
+  ~/.factory-venv/bin/python tools/loudness.py OUT.wav
 """
-import math, os, random, struct, sys, wave
+import os, subprocess, sys, wave
+import numpy as np
 
 SR = 44100
 SND = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", "src", "main", "assets", "sounds")
+GAIN = {"snip": 1.0, "drop": 0.8, "water": 1.0, "grow": 0.5, "done": 0.5, "tick": 0.5, "season": 1.0}
 
 
 def load(name):
-    with wave.open(os.path.join(SND, name + ".wav")) as w:
-        return [v / 32768 for v in struct.unpack("<%dh" % w.getnframes(), w.readframes(w.getnframes()))]
-
-
-def rate(x, r):
-    n = int(len(x) / r)
-    return [x[min(len(x) - 1, int(i * r))] for i in range(n)]
+    raw = subprocess.run(["ffmpeg", "-v", "quiet", "-i", os.path.join(SND, name + ".ogg"), "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, dtype=np.float32)
 
 
 def main(out):
-    rnd = random.Random(5)
-    places = [load("place"), load("place_2"), load("place_3")]
-    win = load("win")
-    buf = [0.0] * (30 * SR)
+    buf = np.zeros(30 * SR, dtype=np.float32)
+    rnd = np.random.default_rng(5)
 
-    def put(x, t):
-        o = int(t * SR)
-        for i, v in enumerate(x):
-            if o + i < len(buf):
-                buf[o + i] += v
+    def put(name, t, rate=1.0):
+        x = load(name) * GAIN[name.split("_")[0]]
+        if rate != 1.0:
+            idx = np.arange(0, len(x) - 1, rate)
+            x = np.interp(idx, np.arange(len(x)), x).astype(np.float32)
+        a = int(t * SR); n = min(len(x), len(buf) - a)
+        if n <= 0: return
+        b = a + n
+        buf[a:b] += x[:n]
 
-    t = 0.3
-    turn = 0
-    while t < 28.0:
-        put(rate(rnd.choice(places), 0.95 + rnd.random() * 0.10), t + 0.22)       # human stone lands
-        t += 0.22 + 0.5 + 0.4                                                  # window + min think
-        put(rate(rnd.choice(places), 0.95 + rnd.random() * 0.10), t + 0.22)   # AI stone lands
-        t += 0.22 + 0.55                                                       # a quick human reply
-        turn += 1
-    put([v * 0.55 for v in win], 28.3)                                     # UI cue at its playback gain
-    peak = max(abs(v) for v in buf)
+    t = 0.5
+    k = 0
+    while t < 27:
+        for _ in range(3):  # three snips, each with its drop
+            put(["snip", "snip_2", "snip_3"][k % 3], t, 0.96 + rnd.random() * 0.08); put("drop", t + 0.6); k += 1; t += 1.6
+        put("tick", t); t += 0.6
+        put("water", t); put("grow", t); t += 2.2
+        put("season", t); t += 1.0
+    put("done", 26.5)
+    peak = np.abs(buf).max()
     if peak > 10 ** (-1 / 20):
-        k = 10 ** (-1 / 20) / peak
-        buf = [v * k for v in buf]
+        buf *= 10 ** (-1 / 20) / peak  # soft headroom only when overlaps pass -1 dBFS
+    pcm = (np.clip(buf, -1, 1) * 32767).astype("<i2")
     with wave.open(out, "wb") as w:
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
-        w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, v)) * 32767)) for v in buf))
-    rms = math.sqrt(sum(v * v for v in buf) / len(buf))
-    pk = max(abs(v) for v in buf)
-    print("RMS %.1f dBFS  peak %.1f dBFS  turns %d" % (20 * math.log10(rms), 20 * math.log10(pk), turn))
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())
+    d = pcm.astype(np.float64)
+    win = 882
+    e = np.array([(d[i:i + win] ** 2).mean() for i in range(0, len(d) - win + 1, win)])
+    pk = np.abs(d).max()
+    voiced = e[e >= (pk * 0.0316) ** 2]
+    print("rendered %s: voiced RMS %.1f dBFS, peak %.1f dBFS" % (out, 20 * np.log10(np.sqrt(voiced.mean()) / 32768), 20 * np.log10(pk / 32768)))
 
 
-main(sys.argv[1])
+if __name__ == "__main__":
+    main(sys.argv[1])

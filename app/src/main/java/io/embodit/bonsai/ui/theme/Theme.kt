@@ -34,6 +34,9 @@ object BonsaiColors {
     /** Secondary / small text on the window glass (>= 4.5:1 on the darkest measured glass #B4B3B1). */
     val InkSecondary = Color(0xFF363C33)
     val ErrorText = Color(0xFF7A1A18)
+    /** Text colours on glass (>= 4.5:1 on #B4B3B1): a score gain, the done title. */
+    val GoodText = Color(0xFF2B3F1E)
+    val TerraText = Color(0xFF5A2816)
     val CutRed = Color(0xFFE5534B)
     val RingYellow = Color(0xFFF2C14E)
     val OutlineTeal = Color(0xFF9FD3D6)

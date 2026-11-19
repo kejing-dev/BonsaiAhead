@@ -193,7 +193,7 @@ private fun TendPage(st: GardenState, settings: Settings, graph: Graph, now: Lon
                 Txt(stringResource(R.string.like_goal, st.threshold), "tend/goal", style = PicoTheme.typography.bodyMedium, color = PicoTheme.colorScheme.labelSecondary)
                 if (st.scoreDelta != 0 && now - st.deltaAt < Garden.DELTA_MS) {
                     Txt((if (st.scoreDelta > 0) "+" else "−") + kotlin.math.abs(st.scoreDelta), "tend/delta", style = PicoTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = if (st.scoreDelta > 0) BonsaiColors.PrimaryDeep else BonsaiColors.ErrorText)
+                        color = if (st.scoreDelta > 0) BonsaiColors.GoodText else BonsaiColors.ErrorText)
                 }
             }
         }
@@ -256,7 +256,7 @@ private fun DonePage(st: GardenState, graph: Graph) {
     val g = graph.garden
     val ctx = LocalContext.current
     PageColumn {
-        Txt(stringResource(R.string.done_title), "done/title", style = PicoTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = BonsaiColors.TerraDeep)
+        Txt(stringResource(R.string.done_title), "done/title", style = PicoTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = BonsaiColors.TerraText)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Txt(Texts.name(ctx, st.name), "done/name", style = PicoTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
             SecondaryButton(stringResource(R.string.btn_rename), "done/rename", onClick = { g.rename() }, modifier = Modifier.width(150.dp))
@@ -290,13 +290,12 @@ private fun ShelfPage(st: GardenState, graph: Graph) {
     val total = g.shelfCards(st)
     PageColumn {
         if (st.confirm == Confirm.CHANGE) {
-            Spacer(Modifier.height(40.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { Thumb(g.tree.view(), st.form, Modifier.size(300.dp, 230.dp)) }
             Txt(stringResource(if (st.shelved) R.string.confirm_change_saved else R.string.confirm_change_unsaved), "shelf/confirm", style = PicoTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 3)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 PrimaryButton(stringResource(R.string.btn_change_yes), "shelf/change-yes", onClick = { g.openPick() }, modifier = Modifier.weight(1f))
                 SecondaryButton(stringResource(R.string.btn_never_mind), "shelf/change-no", onClick = { g.ask(null) }, tall = true, modifier = Modifier.weight(1f).height(80.dp))
             }
-            Spacer(Modifier.height(40.dp))
             return@PageColumn
         }
         if (total == 0) {
@@ -389,7 +388,7 @@ private fun SettingsPage(st: GardenState, settings: Settings, graph: Graph) {
             SecondaryButton(stringResource(R.string.btn_reopen), "settings/reopen", onClick = { graph.window.reopen() }, modifier = Modifier.weight(1f))
         }
         if (st.confirm == Confirm.EXIT) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Txt(stringResource(R.string.confirm_exit), "settings/confirm-exit", style = PicoTheme.typography.labelLarge, maxLines = 2, modifier = Modifier.weight(1f))
                 SecondaryButton(stringResource(R.string.btn_exit_yes), "settings/exit-yes", onClick = { exitApp(ctx, graph) }, danger = true, modifier = Modifier.width(110.dp))
                 SecondaryButton(stringResource(R.string.btn_never_mind), "settings/exit-no", onClick = { g.ask(null) }, modifier = Modifier.width(110.dp))
