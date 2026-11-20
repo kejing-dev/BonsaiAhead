@@ -161,14 +161,15 @@ fun VolumeScreen() {
         attachments = {
             AttachmentPanel(TAG0) { Localized(graph) { PotTag(it, Side.LEFT_ALONE, graph) } }
             AttachmentPanel(TAG1) { Localized(graph) { PotTag(it, Side.TRIMMED, graph) } }
-            AttachmentPanel(TICKS) { Localized(graph) { TickStrip(it, graph) } }
+            AttachmentPanel(TICKS) { Localized(graph) { TickStrip(it) } }
+            AttachmentPanel(OPEN) { Localized(graph) { OpenPanel(graph) } }
             AttachmentPanel(TIP) { Localized(graph) { TipLabel(it) } }
         },
         initial = { content, attachments ->
             contentRef = { e -> content.addEntity(e) }
             content.addEntity(scene.root)
             runCatching { scene.installBasics() }.onFailure { Log.e(TAG, "BASICS failed", it) }
-            for (n in listOf(TAG0, TAG1, TICKS, TIP)) scene.attach(n, attachments.entity(n))
+            for (n in listOf(TAG0, TAG1, TICKS, TIP, OPEN)) scene.attach(n, attachments.entity(n))
             val prefs = context.getSharedPreferences("debug", Context.MODE_PRIVATE)
             if (prefs.getBoolean("s00hold", false)) { Log.i(TAG, "S00 hold 10 s"); delay(10_000) }
             graph.scope.launch { runCatching { loadMutex.withLock { scene.installSlab() } }.onFailure { Log.e(TAG, "SLAB failed", it) } }
@@ -189,6 +190,7 @@ private const val TAG0 = "tag:0"
 private const val TAG1 = "tag:1"
 private const val TICKS = "ticks"
 private const val TIP = "tip"
+private const val OPEN = "open"
 
 /** Attachment panels are their own compositions: they read state + language themselves (附着面板拿不到外层 CompositionLocal). */
 @Composable
@@ -220,24 +222,30 @@ private fun PotTag(st: ForeseeState, side: Side, graph: Graph) {
 
 /** 1300 x 62 dp ≈ 1.04 x 0.05 m strip under the rail: the four stop names, the current one bold (design panels.timeTicks). */
 @Composable
-private fun TickStrip(st: ForeseeState, graph: Graph) {
+private fun TickStrip(st: ForeseeState) {
     val ctx = LocalContext.current
-    Box(Modifier.size(1300.dp, 62.dp), contentAlignment = Alignment.Center) {
-        if (!graph.window.panelOpen && graph.window.panelState != "never") {
-            Button(onClick = { graph.window.open("ticks") }, modifier = Modifier.size(360.dp, 56.dp)) {
-                // design-style: inherited-content-color Button
-                Text(ctx.getString(R.string.open_panel), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+    Row(Modifier.size(1300.dp, 62.dp), verticalAlignment = Alignment.CenterVertically) {
+        Growth.STOPS.forEachIndexed { k, d ->
+            val on = st.day == d
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Text(Texts.stop(ctx, k), color = if (on) Color(0xFF2B2418) else Color(0xFF4A4134), fontSize = if (on) 26.sp else 22.sp,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, softWrap = false,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Color(0xE6F2E6C8) else Color(0xB3EFE8DA)).padding(horizontal = 14.dp, vertical = 2.dp),
+                    onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW ticks/$k") })
             }
-        } else Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Growth.STOPS.forEachIndexed { k, d ->
-                val on = st.day == d
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Text(Texts.stop(ctx, k), color = if (on) Color(0xFF2B2418) else Color(0xFF4A4134), fontSize = if (on) 26.sp else 22.sp,
-                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, softWrap = false,
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Color(0xE6F2E6C8) else Color(0xB3EFE8DA)).padding(horizontal = 14.dp, vertical = 2.dp),
-                        onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW ticks/$k") })
-                }
-            }
+        }
+    }
+}
+
+/** 150 x 62 dp ≈ 0.12 x 0.05 m [打开面板] at the right end of the rail, only while the control window is closed (design S10, D41). */
+@Composable
+private fun OpenPanel(graph: Graph) {
+    val ctx = LocalContext.current
+    if (!graph.window.panelOpen && graph.window.panelState != "never") {
+        Button(onClick = { graph.window.open("rail") }, modifier = Modifier.size(150.dp, 62.dp)) {
+            // design-style: inherited-content-color Button
+            Text(ctx.getString(R.string.open_panel), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
+                onTextLayout = { if (it.hasVisualOverflow) Log.w(TAG, "OVERFLOW openPanel") })
         }
     }
 }

@@ -353,6 +353,8 @@ internal class ForeseeScene(private val loadModel: suspend (String) -> Entity, p
             "tag:0", "tag:1" -> e.at(V3(Layout.TAG_C[name.last() - '0'], Layout.TAG_Y, Layout.TAG_Z), Q4.axis(V3(1f, 0f, 0f), -Layout.deg(Layout.TAG_TILT_DEG)))
             "ticks" -> e.at(V3(0f, Layout.TICKS_Y, Layout.TICKS_Z), Q4.axis(V3(1f, 0f, 0f), -Layout.deg(40f)))
             "tip" -> { e.enabled = false }
+            // right end of the rail, past the last stop (bead max x 0.515)
+            "open" -> e.at(V3(0.585f, Layout.RAIL_Y + 0.01f, Layout.RAIL_Z + 0.01f), Q4.axis(V3(1f, 0f, 0f), -Layout.deg(30f)))
         }
         floor.addChild(e)
         attachments[name] = e

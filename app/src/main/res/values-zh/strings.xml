@@ -36,6 +36,7 @@
     <string name="legend_dashed">虚线 = 剪好后该有的样子</string>
     <string name="legend_yellow">黄的 = 该剪的新芽，点一下看怎么剪</string>
     <string name="this_month">这个月：%1$s</string>
+    <string name="this_shoot">这一根：%1$s</string>
     <string name="todo_trim">剪新芽，%1$s</string>
     <string name="todo_rest">少浇水，放背风处，等春天</string>
     <string name="todo_grow_out">不用剪，多晒太阳，土干了再浇</string>
@@ -73,10 +74,10 @@
     <string name="btn_cancel">算了</string>
     <string name="btn_back">返回</string>
     <string name="version_line">盆景预见 %1$s · 模型 Tripo · 声音 CC0</string>
-    <string name="how_to_time">拖时间：拖滑条；或看着木珠捏住左右拉 / 手柄射线按住扳机拉；点刻度直接跳</string>
-    <string name="how_to_tip">看怎么剪：看着黄芽捏一下 / 射线指着按扳机</string>
-    <string name="how_to_turn">转盆：点盆（两盆一起转 90°），或捏住盆左右拖</string>
-    <string name="how_to_pick">换一盆：「挑一盆」页点卡片</string>
+    <string name="how_to_time">拖滑条；或看着木珠捏住左右拉 / 手柄射线按住扳机拉；点刻度直接跳</string>
+    <string name="how_to_tip">看着黄芽捏一下 / 射线指着按扳机</string>
+    <string name="how_to_turn">点盆（两盆一起转 90°），或捏住盆左右拖</string>
+    <string name="how_to_pick">「挑一盆」页点卡片</string>
     <string name="how_to_t_time">拖时间</string>
     <string name="how_to_t_tip">看怎么剪</string>
     <string name="how_to_t_turn">转盆</string>

@@ -36,6 +36,7 @@
     <string name="legend_dashed">Dashed line = the shape it should keep</string>
     <string name="legend_yellow">Yellow = shoots to trim. Tap one to see how</string>
     <string name="this_month">This month: %1$s</string>
+    <string name="this_shoot">This shoot: %1$s</string>
     <string name="todo_trim">trim new shoots (%1$s)</string>
     <string name="todo_rest">water less, keep it out of the wind, wait for spring</string>
     <string name="todo_grow_out">no trimming, lots of sun, water when the soil dries</string>
@@ -73,10 +74,10 @@
     <string name="btn_cancel">Cancel</string>
     <string name="btn_back">Back</string>
     <string name="version_line">Bonsai Ahead %1$s · models Tripo · sounds CC0</string>
-    <string name="how_to_time">Drag time: drag the slider, or pinch the wooden bead and pull / point and hold the trigger. Tap a stop to jump.</string>
-    <string name="how_to_tip">How to trim: look at a yellow shoot and pinch / point and pull the trigger.</string>
-    <string name="how_to_turn">Turn: tap a pot (both turn 90°), or pinch a pot and drag sideways.</string>
-    <string name="how_to_pick">Another bonsai: the Pick tab.</string>
+    <string name="how_to_time">Drag the slider, or pinch the wooden bead and pull / point and hold the trigger. Tap a stop to jump.</string>
+    <string name="how_to_tip">Look at a yellow shoot and pinch / point and pull the trigger.</string>
+    <string name="how_to_turn">Tap a pot (both turn 90°), or pinch a pot and drag sideways.</string>
+    <string name="how_to_pick">The Pick tab.</string>
     <string name="how_to_t_time">Drag time</string>
     <string name="how_to_t_tip">How to trim</string>
     <string name="how_to_t_turn">Turn</string>

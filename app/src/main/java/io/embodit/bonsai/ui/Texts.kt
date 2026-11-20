@@ -42,6 +42,8 @@ object Texts {
     /** "这个月：…" (design S01–S05 window line). */
     fun thisMonth(ctx: Context, st: ForeseeState, g: Growth?): String {
         g ?: return ""
+        // QA q1-1 (S06): while a yellow shoot's tip label is up, the line shows that shoot's rule, the same text as the label
+        st.tip?.let { return ctx.getString(R.string.this_shoot, tip(ctx, st.species, it.month)) }
         val m = g.month(st.day)
         val todo = when {
             m in st.species.pruneMonths -> ctx.getString(R.string.todo_trim, rule(ctx, st.species))
